@@ -94,6 +94,24 @@ def join_arrays_with_index(array1, array2, index_column):
     return result_array
 
 def remampping_index(dataframe, remap_col ,map_dict):
+    '''
+    还原索引。
+
+    Parameters
+    ----------
+    dataframe : TYPE
+        DESCRIPTION.
+    remap_col : TYPE
+        DESCRIPTION.
+    map_dict : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    dataframe : TYPE
+        DESCRIPTION.
+
+    '''
     remap_relationship= {v:k for k,v in map_dict.items()}
     dataframe[remap_col]=dataframe[remap_col].map(remap_relationship)
     return dataframe

@@ -8,7 +8,7 @@ import weight as wt
 
 import tools as tls
 
-import balance_test as bt
+import PSM_test as pt
 
 import shap_weight as sw
 
@@ -52,42 +52,65 @@ def weight_cal(dataframe,individual_col,time_col,treatment_col,propensity_col,fi
     # 提取个体干预效应值（观测期内不变），这是个脚手架
     inds_treatment=mapped_data.groupby(individual_col)[treatment_col].unique()
     
-    # 二维转三维
+    # Transfrom the two-dim data into three-dim data.
     three_dim_matrix=ds.transform_to_three_dim(mapped_data,individual_col,time_col,fixed_features_cols)
     
-    # 计算距离矩阵
+    # Calculation the distance matrix.
     distance_matrix=ds.calculate_feature_distances(three_dim_matrix,treatment_col,propensity_col,fixed_features_cols)
     
-    # 确定邻居
+    # Confirm the neighbors.
     neighbors_relationship=wt.neighbors(distance_matrix,neighbor,radius)
     
     if glob:
-    # 生成全局权重 
+    # Generate the global weights of observations. 
         weighted_series=wt.generate_weight(neighbors_relationship,inds_treatment,neighbor)
     
         temp=mp.remampping_index(pd.DataFrame(weighted_series).reset_index(), individual_col, individuals_index)
         weighted_data=pd.merge(dataframe,temp,left_on='PAC',right_on='PAC',how='left')
+        weighted_data.rename(columns={0:'weights'},inplace=True)        
     
     else:
-    # Shapley weight decomposition
+    # Shapley weight decomposition. Still under constrcution. For logic misunderstanding of decomposition.
         powerset=sw.generate_powersetgraph_nodes(mapped_data,times_index,individual_col, time_col, treatment_col,propensity_col,neighbor,radius,fixed_features_cols)
         powerset=sw.connect_powersetgraph_nodes(powerset)
         time_decomposed_weight=sw.cal_shapley_value(powerset,shap_abs=True)
     
         time_decomposed_weight=time_decomposed_weight.stack().reset_index()
     
-        time_decomposed_weight.rename(columns={'level_1':'year'},inplace=True)
+        time_decomposed_weight.rename(columns={'level_1':time_col},inplace=True)
         
         time_decomposed_weight=mp.remampping_index(time_decomposed_weight, individual_col, individuals_index)
         time_decomposed_weight=mp.remampping_index(time_decomposed_weight, time_col, times_index)
         
         weighted_data=pd.merge(dataframe,time_decomposed_weight,on=['PAC','year'],how='left')
     
-    
-    # 返回带有权重信息的数据集
     return weighted_data
     
-def DID(data):
+def DID(data,end_v,exo_vs,time_col=None,individual_col=None,weights_col=None):
+    '''
+    Difference in difference model.
+
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    end_v : TYPE
+        DESCRIPTION.
+    exo_vs : TYPE
+        DESCRIPTION.
+    time_col : TYPE, optional
+        DESCRIPTION. The default is None.
+    individual_col : TYPE, optional
+        DESCRIPTION. The default is None.
+    weights_col : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
     return 
 
 # 示例用法
@@ -105,8 +128,13 @@ if __name__ == "__main__":
     fixed_features_cols=['ecoregion']
     
     data_test=df.head(500)
+    
+    # Matching and weighting.(PSM)
     weighted_data=weight_cal(data_test,individual_col,time_col,treatment_col,propensity_col,fixed_features_cols,glob=True)
     
+    weights_col='weights'
+    
+    # Define the group of variables used in regression.
     ecology_columns=["PWL","LAI","NPP","PM25","HFP"] 
     agriculture_columns=["GP","PAM","PAL","IRR","PIR"]
     development_columns=["GDP","PAP","PR","DCE","PMP","PIeS","POP"]
@@ -114,7 +142,25 @@ if __name__ == "__main__":
     all_variances= obs_columns+ecology_columns+agriculture_columns+development_columns
     all_covariances=ecology_columns+agriculture_columns+development_columns
     
-    ds1=df[all_variances].head(500)
-    balance_results=[]
+    # Dual-track balance check.
+    unique_times=weighted_data['year'].unique()
+    COF_check_results=[]
+    SMD_check_results=[]
+    
+    for time in unique_times:
+    # COF balance check.
+        COF_check_result=pt.balance_check_cofficient(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
+        COF_check_results.append(COF_check_result)
+    
+    # SMD balance check.
+        SMD_check_result=pt.balance_check_means(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
+        SMD_check_results.append(SMD_check_result)
+    
+    # Common support check
+    pt.propensity_hist_check(weighted_data, treatment_col, propensity_col, weights_col)
+    
+    common_support_check=pt.common_support_check(weighted_data, treatment_col, propensity_col)
+    
+    
     
     

@@ -10,4 +10,4 @@ Functions for parallel trends test of DID model.
 import mapping as mp
 
 def parallel_test(data, time_col, individual_col, covariate_cols):
-    
+    return 
