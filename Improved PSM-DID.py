@@ -6,7 +6,7 @@ import mapping as mp
 import distance as ds
 import weight as wt
 
-import tools as tls
+import linearmodels as ls
 
 import PSM_test as pt
 
@@ -86,7 +86,7 @@ def weight_cal(dataframe,individual_col,time_col,treatment_col,propensity_col,fi
     
     return weighted_data
     
-def DID(data,end_v,exo_vs,time_col=None,individual_col=None,weights_col=None):
+def PanelDID(data,end_v,exo_vs,treatment_col,time_col,individual_col,time_startpoint,weights_col=None):
     '''
     Difference in difference model.
 
@@ -110,8 +110,24 @@ def DID(data,end_v,exo_vs,time_col=None,individual_col=None,weights_col=None):
     None.
 
     '''
+    df=data.copy()
     
-    return 
+    df['T']=0
+    df.loc[df['year']>=time_startpoint,['T']]=1
+    
+    df['interactive']=df['T']*df[treatment_col]
+    
+    df=df.set_index([individual_col,time_col])
+    
+    formula_str=f"{end_v} ~ {'+'.join(exo_vs)} + interactive + EntityEffects"
+    
+    DID_model = ls.PanelOLS.from_formula(formula_str,data=df,weights=df[weights_col])
+    
+    result=DID_model.fit()
+    
+    print(result)
+    
+    return result
 
 # 示例用法
 if __name__ == "__main__":
@@ -127,7 +143,7 @@ if __name__ == "__main__":
     
     fixed_features_cols=['ecoregion']
     
-    data_test=df.head(500)
+    data_test=df
     
     # Matching and weighting.(PSM)
     weighted_data=weight_cal(data_test,individual_col,time_col,treatment_col,propensity_col,fixed_features_cols,glob=True)
@@ -143,7 +159,7 @@ if __name__ == "__main__":
     all_covariances=ecology_columns+agriculture_columns+development_columns
     
     # Dual-track balance check.
-    unique_times=weighted_data['year'].unique()
+    unique_times=weighted_data[time_col].unique()
     COF_check_results=[]
     SMD_check_results=[]
     
@@ -156,10 +172,17 @@ if __name__ == "__main__":
         SMD_check_result=pt.balance_check_means(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
         SMD_check_results.append(SMD_check_result)
     
-    # Common support check
+    # Common support check.
     pt.propensity_hist_check(weighted_data, treatment_col, propensity_col, weights_col)
     
     common_support_check=pt.common_support_check(weighted_data, treatment_col, propensity_col)
+    # Define related variables of econometrics model.
+    end_v='GP'
+    exo_vs=ecology_columns+development_columns
+    
+    time_startpoint=2009
+    
+    PanelDID(weighted_data.loc[weighted_data[weights_col]>0],end_v,exo_vs,treatment_col,time_col,individual_col,time_startpoint,weights_col=weights_col)
     
     
     
