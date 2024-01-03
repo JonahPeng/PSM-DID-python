@@ -29,3 +29,23 @@ def generate_subsets(my_list):
         
     return subsets
 
+def max_element_less_than_x(lst, target):
+    '''
+    Find the max element in given list which is smaller than target number. If there is no such element, return None.
+
+    Parameters
+    ----------
+    lst : List
+        Given list.
+    target : Double
+        Target number.
+
+    Returns
+        The max element (value).
+    -------
+    None.
+
+    '''
+    flitered_elements=filter(lambda x: x < target,lst)
+    
+    return max(flitered_elements, default=None)

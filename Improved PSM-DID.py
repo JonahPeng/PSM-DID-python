@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 import mapping as mp
@@ -7,10 +6,12 @@ import distance as ds
 import weight as wt
 
 import linearmodels as ls
+import statsmodels.iolib.summary2 as sm2
 
 import PSM_test as pt
 
-import shap_weight as sw
+import warnings # 忽略warning
+warnings.filterwarnings("ignore")
 
 # 匹配全局变量定义区
 radius = 0.05
@@ -71,9 +72,9 @@ def weight_cal(dataframe,individual_col,time_col,treatment_col,propensity_col,fi
     
     else:
     # Shapley weight decomposition. Still under constrcution. For logic misunderstanding of decomposition.
-        powerset=sw.generate_powersetgraph_nodes(mapped_data,times_index,individual_col, time_col, treatment_col,propensity_col,neighbor,radius,fixed_features_cols)
-        powerset=sw.connect_powersetgraph_nodes(powerset)
-        time_decomposed_weight=sw.cal_shapley_value(powerset,shap_abs=True)
+        powerset=wt.generate_powersetgraph_nodes(mapped_data,times_index,individual_col, time_col, treatment_col,propensity_col,neighbor,radius,fixed_features_cols)
+        powerset=wt.connect_powersetgraph_nodes(powerset)
+        time_decomposed_weight=wt.cal_shapley_value(powerset,shap_abs=True)
     
         time_decomposed_weight=time_decomposed_weight.stack().reset_index()
     
@@ -176,14 +177,22 @@ if __name__ == "__main__":
     pt.propensity_hist_check(weighted_data, treatment_col, propensity_col, weights_col)
     
     common_support_check=pt.common_support_check(weighted_data, treatment_col, propensity_col)
-    # Define related variables of econometrics model.
-    end_v='GP'
-    exo_vs=ecology_columns+development_columns
     
+    # Set the startpoint of treatment.
     time_startpoint=2009
     
-    PanelDID(weighted_data.loc[weighted_data[weights_col]>0],end_v,exo_vs,treatment_col,time_col,individual_col,time_startpoint,weights_col=weights_col)
+    results=[]
+    model_names=[]
     
+    # Define related variables of econometrics model.
+    for end_v in agriculture_columns:
+        exo_vs=ecology_columns+development_columns
+        
+        result=PanelDID(weighted_data.loc[weighted_data[weights_col]>0],end_v,exo_vs,treatment_col,time_col,individual_col,time_startpoint,weights_col=weights_col)
+        
+        results.append(result)
+        model_names.append(end_v)
+        
+        
     
-    
-    
+        
