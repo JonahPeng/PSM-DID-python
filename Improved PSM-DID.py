@@ -6,11 +6,12 @@ import distance as ds
 import weight as wt
 
 import linearmodels as ls
-import statsmodels.iolib.summary2 as sm2
 
 import PSM_test as pt
 
-import warnings # 忽略warning
+import To_docx as tdx
+
+import warnings # ignore warnings
 warnings.filterwarnings("ignore")
 
 # 匹配全局变量定义区
@@ -126,8 +127,6 @@ def PanelDID(data,end_v,exo_vs,treatment_col,time_col,individual_col,time_startp
     
     result=DID_model.fit()
     
-    print(result)
-    
     return result
 
 # 示例用法
@@ -193,6 +192,8 @@ if __name__ == "__main__":
         results.append(result)
         model_names.append(end_v)
         
-        
+    
+    tdx.reg_to_docx(results,agriculture_columns,ecology_columns+development_columns)
+    
     
         
