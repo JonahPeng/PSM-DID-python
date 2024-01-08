@@ -7,7 +7,8 @@ import weight as wt
 
 import linearmodels as ls
 
-import PSM_test as pt
+import PSM_test as psmt
+import parallel_test as didt
 
 import To_docx as tdx
 
@@ -133,7 +134,7 @@ def PanelDID(data,end_v,exo_vs,treatment_col,time_col,individual_col,time_startp
 if __name__ == "__main__":
     # 生成示例数组
     
-    df= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\Part2.csv")
+    df= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\Part2(00-20).csv")
     
     individual_col='PAC'
     time_col='year'
@@ -151,8 +152,8 @@ if __name__ == "__main__":
     weights_col='weights'
     
     # Define the group of variables used in regression.
-    ecology_columns=["PWL","LAI","NPP","PM25","HFP"] 
-    agriculture_columns=["GP","PAM","PAL","IRR","PIR"]
+    ecology_columns=["PWL","NPP","PM25","HFP"] 
+    agriculture_columns=["GP","PAM","PAL","IRR"]
     development_columns=["GDP","PAP","PR","DCE","PMP","PIeS","POP"]
     obs_columns=["PAC","year","function1","function2","function3"]
     all_variances= obs_columns+ecology_columns+agriculture_columns+development_columns
@@ -165,17 +166,17 @@ if __name__ == "__main__":
     
     for time in unique_times:
     # COF balance check.
-        COF_check_result=pt.balance_check_cofficient(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
+        COF_check_result=psmt.balance_check_cofficient(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
         COF_check_results.append(COF_check_result)
     
     # SMD balance check.
-        SMD_check_result=pt.balance_check_means(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
+        SMD_check_result=psmt.balance_check_means(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
         SMD_check_results.append(SMD_check_result)
     
     # Common support check.
-    pt.propensity_hist_check(weighted_data, treatment_col, propensity_col, weights_col)
+    psmt.propensity_hist_check(weighted_data, treatment_col, propensity_col, weights_col)
     
-    common_support_check=pt.common_support_check(weighted_data, treatment_col, propensity_col)
+    common_support_check=psmt.common_support_check(weighted_data, treatment_col, propensity_col)
     
     # Set the startpoint of treatment.
     time_startpoint=2009
@@ -192,6 +193,7 @@ if __name__ == "__main__":
         results.append(result)
         model_names.append(end_v)
         
+    parallel_test_check=didt.parallel_test(weighted_data.loc[weighted_data[weights_col]>0], end_v, time_col, treatment_col, individual_col, exo_vs, time_startpoint,weights_col=weights_col)
     
     tdx.reg_to_docx(results,agriculture_columns,ecology_columns+development_columns)
     

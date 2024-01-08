@@ -36,7 +36,7 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     '''
     # Generate the interactive dubbing variables of all observed times.
     if weights_col:
-        df=data.loc[data[weights_col>0]].copy()
+        df=data.loc[data[weights_col]>0].copy()
     else:
         df=data.copy()
     
@@ -45,31 +45,31 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     times=df[time_col].unique()
     
     for time in times:
-        temp_name=time.type(str)
-        df[temp_name]=0
-        df.loc[df[time_col]==time,[temp_name]]=1
+        temp_name=str(time)
+        name_col='t'+str(time)
+        df[name_col]=0
+        df.loc[df[time_col]==time,[name_col]]=1
         
-        df[temp_name]=df[temp_name]*df[treatment_col]
+        df[name_col]=df[name_col]*df[treatment_col]
         
         exo_vs.append(temp_name)
     
+    exo_vs_int=[int(time) for time in exo_vs]
     # Drop the last period before the treatment as the control group.
-    last_period=tls.max_element_less_than_x(exo_vs, time_startpoint)
-    exo_vs.remove(last_period)
+    last_period=tls.max_element_less_than_x(exo_vs_int, time_startpoint)
+    exo_vs.remove(str(last_period))
+    
+    exo_vs=['t'+time for time in exo_vs]
     
     # Two-way fixed effects panel OLS model (Event Study)
-    df.set_index([individual_col,time_col])
+    df=df.set_index([individual_col,time_col])
     
-    formula_str=f"{end_v} ~ {'+'.join(exo_vs)}"
+    formula_str=f"{end_v} ~ 1 + {'+'.join(exo_vs)} + EntityEffects + TimeEffects"
     
     if weights_col:
-        parallel_model=ls.PanelOLS.from_formula(formula_str, data=df,weights=df[weights_col])
+        parallel_model=ls.PanelOLS.from_formula(formula_str,  data=df,weights=df[weights_col])
     else:
         parallel_model=ls.PanelOLS.from_formula(formula_str, data=df)
-    
-    parallel_model.entity_effects=True
-    parallel_model.time_effects=True
-    parallel_model.has_constant=True
     
     model_result=parallel_model.fit()
     
