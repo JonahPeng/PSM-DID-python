@@ -9,6 +9,7 @@ Functions for parallel trends test of DID model.
 
 import linearmodels as ls
 import tools as tls
+import matplotlib.pyplot as plt
 
 def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_cols,time_startpoint,weights_col=None):
     '''
@@ -57,9 +58,12 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     exo_vs_int=[int(time) for time in exo_vs]
     # Drop the last period before the treatment as the control group.
     last_period=tls.max_element_less_than_x(exo_vs_int, time_startpoint)
+    exo_vs_int.remove(last_period)
     exo_vs.remove(str(last_period))
     
     exo_vs=['t'+time for time in exo_vs]
+    
+    exo_vs.sort()
     
     # Two-way fixed effects panel OLS model (Event Study)
     df=df.set_index([individual_col,time_col])
@@ -73,7 +77,35 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     
     model_result=parallel_model.fit()
     
+    params=model_result.params
+    CI95=model_result.conf_int(0.95)
+    
+    fig,ax=plt.subplots(figsize=(10,6),constrained_layout=True)
+    
+    x=range(len(exo_vs))
+    y=params[1:].values
+    
+    
+    ax.plot(x,y,label='Estimated Effect',marker='o',color='#202020',linestyle='-',linewidth=2.5)
+    ax.fill_between(x,CI95['lower'].iloc[1:],CI95['upper'].iloc[1:],color="#A0A0A0",alpha=0.75,label='95% CI')
+    ax.plot(x,CI95['lower'].iloc[1:],color='#606060',linestyle='-.',linewidth=1.5)
+    ax.plot(x,CI95['upper'].iloc[1:],color='#606060',linestyle='-.',linewidth=1.5)
+    ax.axhline(y=0,color='#000000',linestyle='-',linewidth=1)
+    
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Estimated Effect')
+    
+    ax.set_xticks(x,[t.lstrip('t') for t in exo_vs])
+    
+    
+    ax.set_title('Event Study Figure')
+    ax.legend()
+
+    
+    plt.show()
+    
     print(model_result)
     
     # under constructing…… show the plot of event study……
+    
     return model_result

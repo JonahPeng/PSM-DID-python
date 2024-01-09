@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 
 import mapping as mp
@@ -129,12 +131,17 @@ def PanelDID(data,end_v,exo_vs,treatment_col,time_col,individual_col,time_startp
     result=DID_model.fit()
     
     return result
+    
 
 # 示例用法
 if __name__ == "__main__":
-    # 生成示例数组
+    # Set working path
+    dir_path=r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估"
+    os.chdir(dir_path)
     
-    df= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\Part2(00-20).csv")
+    
+    # Read the original dataset.
+    df= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\ExcelData\Part2(00-20).csv")
     
     individual_col='PAC'
     time_col='year'
@@ -144,10 +151,14 @@ if __name__ == "__main__":
     
     fixed_features_cols=['ecoregion']
     
-    data_test=df
+    df=df.loc[df[time_col]>2004]
     
-    # Matching and weighting.(PSM)
-    weighted_data=weight_cal(data_test,individual_col,time_col,treatment_col,propensity_col,fixed_features_cols,glob=True)
+    if not os.path.exists(r"PythonData\WeightedData.csv"):
+        # Matching and weighting.(PSM)
+        weighted_data=weight_cal(df,individual_col,time_col,treatment_col,propensity_col,fixed_features_cols,glob=True)
+        weighted_data.to_csv(r"PythonData\WeightedData.csv",index=True)
+    else:
+        weighted_data=pd.read_csv(r"PythonData\WeightedData.csv")
     
     weights_col='weights'
     
@@ -159,24 +170,11 @@ if __name__ == "__main__":
     all_variances= obs_columns+ecology_columns+agriculture_columns+development_columns
     all_covariances=ecology_columns+agriculture_columns+development_columns
     
-    # Dual-track balance check.
-    unique_times=weighted_data[time_col].unique()
-    COF_check_results=[]
-    SMD_check_results=[]
-    
-    for time in unique_times:
-    # COF balance check.
-        COF_check_result=psmt.balance_check_cofficient(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
-        COF_check_results.append(COF_check_result)
-    
-    # SMD balance check.
-        SMD_check_result=psmt.balance_check_means(weighted_data.loc[weighted_data['year']==time], treatment_col, all_covariances, weights_col)
-        SMD_check_results.append(SMD_check_result)
+    # Balance check.
+    balance_check_results=psmt.balance_check_multi_times(weighted_data, treatment_col, all_covariances, weights_col, time_col)
     
     # Common support check.
-    psmt.propensity_hist_check(weighted_data, treatment_col, propensity_col, weights_col)
-    
-    common_support_check=psmt.common_support_check(weighted_data, treatment_col, propensity_col)
+    common_support_check=psmt.common_support_check(weighted_data, treatment_col, propensity_col,weights_col)
     
     # Set the startpoint of treatment.
     time_startpoint=2009
@@ -184,18 +182,26 @@ if __name__ == "__main__":
     results=[]
     model_names=[]
     
+    # Drop the unmatched observations.
+    weighted_data=weighted_data.loc[weighted_data[weights_col]>0]
+    
     # Define related variables of econometrics model.
     for end_v in agriculture_columns:
         exo_vs=ecology_columns+development_columns
         
-        result=PanelDID(weighted_data.loc[weighted_data[weights_col]>0],end_v,exo_vs,treatment_col,time_col,individual_col,time_startpoint,weights_col=weights_col)
+        result=PanelDID(weighted_data,end_v,exo_vs,treatment_col,time_col,individual_col,time_startpoint,weights_col=weights_col)
         
         results.append(result)
         model_names.append(end_v)
-        
-    parallel_test_check=didt.parallel_test(weighted_data.loc[weighted_data[weights_col]>0], end_v, time_col, treatment_col, individual_col, exo_vs, time_startpoint,weights_col=weights_col)
     
-    tdx.reg_to_docx(results,agriculture_columns,ecology_columns+development_columns)
+    end_v='IRR'
+    exo_vs=ecology_columns+development_columns
+        
+    parallel_test_check=didt.parallel_test(weighted_data, end_v, time_col, treatment_col, individual_col, exo_vs, time_startpoint,weights_col=weights_col)
+    
+    exo_vs.append('Treatment×Time')
+    
+    tdx.regs_to_docx(results,agriculture_columns)
     
     
         

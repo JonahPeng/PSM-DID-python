@@ -9,10 +9,28 @@ For output the regression result into docx tables.
 
 import tabulate as tb
 import numpy as np
+import pandas as pd
 
-def reg_to_docx(regs,end_vs,exo_vs):
+def df_to_docx(data,significance_cols):
+    df=data.round(decimal=3).copy()
+    df[significance_cols]=df[significance_cols].apply(add_stars)
+    return tb.tabulate(df,tablefmt='fancy_grid',headers='keys')
+
+def add_stars(significance):
+    output=str(significance)
+    if significance<0.1:
+        output=output+'*'
+        if significance<0.05:
+            output=output+'*'
+            if significance<0.01:
+                output=output+'*'
+    
+    return output
+        
+
+def regs_to_docx(regs,end_vs):
     '''
-    Transfrom given results of regression into table.
+    Transfrom given results of regression into table. Take care that all regression results should have the same form of the equation.
 
     Parameters
     ----------
@@ -28,6 +46,8 @@ def reg_to_docx(regs,end_vs,exo_vs):
     pvalues=[]
     nobs=[]
     rss=[]
+    
+    exo_vs=regs[0].params.index.tolist()
     
     # Get the information from results of regression.
     for reg in regs:
@@ -47,8 +67,7 @@ def reg_to_docx(regs,end_vs,exo_vs):
         if i==0:
             for j in range(len(exo_vs)):
                 output_tb[2*j+1][i]=exo_vs[j]
-            
-            output_tb[-5][i]='Treatment×Time'
+
             output_tb[0][i]=' '
             output_tb[-2][i]="Observations"
             output_tb[-1][i]="R-squared"
@@ -70,9 +89,11 @@ def reg_to_docx(regs,end_vs,exo_vs):
             output_tb[-2][i]=nobs[i-1]
             output_tb[-1][i]=rss[i-1]
     
-    table=tb.tabulate(output_tb,headers='firstrow',tablefmt='fancy_grid')    
+    table=tb.tabulate(output_tb,headers='firstrow',tablefmt='fancy_grid')
+    
+    dataframe=pd.DataFrame(data=output_tb[1:],columns=output_tb[0])
     
     print(table)
-    return table
+    return dataframe
     
 

@@ -10,10 +10,47 @@ import numpy as np
 import statsmodels.api as sm
 import patsy as pt
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.calibration import calibration_curve
 
+import To_docx as tdx
+
+# Complex Functions
+def balance_check_multi_times(data,treatment_col, covariate_cols, weights_col, time_col,check_method='SMD'):
+    '''
+    Balance check for multi times data. Generate check
+
+    Parameters
+    ----------
+    data : pandas.dataframe
+        Panel data.
+    treatment_col : str
+        Name of treatment col.
+    covariate_cols : list of str
+        Names of covariables columns.
+    weights_col : str
+        Names of weights col.
+    time_col : str
+        Name of times col.
+    check_method: str
+        Used method to evaluate the balance situation. Implemented: SMD(Standard Means Difference, default), COF(Coefficients Significance)
+
+    Returns
+    -------
+    List of dataframe of check results.
+
+    '''
+    check_methods={'SMD':balance_check_means,'COF':balance_check_cofficient}
+    
+    unique_times=data[time_col].unique()
+    check_results=[]
+    
+    for time in unique_times:
+        check_result=check_methods[check_method](data.loc[data[time_col]==time],treatment_col,covariate_cols,weights_col)
+        check_results.append(check_result)
+    
+    return check_results
+    
+
+# Basic Functions
 def balance_check_means(data, treatment_col, covariate_cols, weights_col):
     """
     平衡性检验函数，计算匹配前后两组在协变量上的均值差异。
@@ -49,14 +86,14 @@ def balance_check_means(data, treatment_col, covariate_cols, weights_col):
     weighted_diff = pd.DataFrame(tw)[0]
 
     # 统计信息
-    balance_results = pd.DataFrame({
+    balance_result = pd.DataFrame({
         'Pre-Match Mean Difference': pre_match_diff.values,
         'Weighted Mean Difference': weighted_diff.values,
         'Pre B-stats':(pre_match_diff/std).values,
         'After B-stats':(weighted_diff/weighted_std).values
     }, index=covariate_cols)
 
-    return balance_results
+    return balance_result
 
 def balance_check_cofficient(dataframe, treatment_col, covariate_cols, weights_col):
     '''
@@ -93,9 +130,53 @@ def balance_check_cofficient(dataframe, treatment_col, covariate_cols, weights_c
     w_probit_model=sm.Probit(y,X)
     w_probit_result=w_probit_model.fit(cov_type='HC1',method='bfgs',weights=dataframe['weights'])
     
-    return [probit_result,w_probit_result]
+    regs=[probit_result,w_probit_result]
+    
+    return tdx.regs_to_docx(regs, ['Pre-matching','After-matching'])
+ 
+def common_support_check(data, treatment_col, propensity_col,weights_col):
+    '''
+    Summary the common support observations.
 
-def propensity_hist_check(data,treatment_col,propensity_col,weights_col):
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    treatment_col : TYPE
+        DESCRIPTION.
+    propensity_col : TYPE
+        DESCRIPTION.
+    weights_col : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
+    df=data.copy()
+    
+    propensity_hist(df, treatment_col, propensity_col, weights_col)
+    
+    max_propensity=df[df[treatment_col]==0][propensity_col].max()
+    min_propensity=df[df[treatment_col]==0][propensity_col].min()
+    
+    max_propensity=min(max_propensity,df[df[treatment_col]==1][propensity_col].max())
+    min_propensity=max(min_propensity,df[df[treatment_col]==1][propensity_col].min())
+    
+    usingdata=data.loc[:,[treatment_col,propensity_col]]
+    commondata=usingdata.loc[(df[propensity_col]<=max_propensity) & (df[propensity_col]>=min_propensity)]
+    
+    count1=usingdata.groupby(treatment_col)[propensity_col].count().rename('all_obs')
+    count2=commondata.groupby(treatment_col)[propensity_col].count().rename('common_obs')
+    
+    common_support_result=pd.concat([count1,count2],axis=1)
+    common_support_result['%Common support']=common_support_result['common_obs']/common_support_result['all_obs']
+    
+    return common_support_result
+
+
+def propensity_hist(data,treatment_col,propensity_col,weights_col):
     '''
     Common support checking for Propensity Matching. Return a graph of common supoport situation. 
 
@@ -127,46 +208,6 @@ def propensity_hist_check(data,treatment_col,propensity_col,weights_col):
     
     plt.show()
     return plt.gcf()
-    
-def common_support_check(data, treatment_col, propensity_col):
-    '''
-    Summary the common support observations.
-
-    Parameters
-    ----------
-    data : TYPE
-        DESCRIPTION.
-    treatment_col : TYPE
-        DESCRIPTION.
-    propensity_col : TYPE
-        DESCRIPTION.
-    weights_col : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
-    '''
-    df=data.copy()
-    
-    max_propensity=df[df[treatment_col]==0][propensity_col].max()
-    min_propensity=df[df[treatment_col]==0][propensity_col].min()
-    
-    max_propensity=min(max_propensity,df[df[treatment_col]==1][propensity_col].max())
-    min_propensity=max(min_propensity,df[df[treatment_col]==1][propensity_col].min())
-    
-    usingdata=data.loc[:,[treatment_col,propensity_col]]
-    commondata=usingdata.loc[(df[propensity_col]<=max_propensity) & (df[propensity_col]>=min_propensity)]
-    
-    count1=usingdata.groupby(treatment_col)[propensity_col].count().rename('all_obs')
-    count2=commondata.groupby(treatment_col)[propensity_col].count().rename('common_obs')
-    
-    common_support_result=pd.concat([count1,count2],axis=1)
-    common_support_result['%Common support']=common_support_result['common_obs']/common_support_result['all_obs']
-    
-    return common_support_result
-
 
 def weighted_variance(data, columns, weight):
     """
