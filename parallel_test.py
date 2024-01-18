@@ -68,7 +68,7 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     # Two-way fixed effects panel OLS model (Event Study)
     df=df.set_index([individual_col,time_col])
     
-    formula_str=f"{end_v} ~ 1 + {'+'.join(exo_vs)} + EntityEffects + TimeEffects"
+    formula_str=f"{end_v} ~ 1 + {'+'.join(exo_vs)} + {'+'.join(covariate_cols)} + EntityEffects + TimeEffects"
     
     if weights_col:
         parallel_model=ls.PanelOLS.from_formula(formula_str,  data=df,weights=df[weights_col])
@@ -77,19 +77,21 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     
     model_result=parallel_model.fit()
     
+    # Get the params and the CI95 of regression.
     params=model_result.params
     CI95=model_result.conf_int(0.95)
     
     fig,ax=plt.subplots(figsize=(10,6),constrained_layout=True)
     
+    # Points to plot.
     x=range(len(exo_vs))
-    y=params[1:].values
-    
+    y=params[1:1+len(exo_vs)].values
+    y_ci=CI95.iloc[1:1+len(exo_vs),:]
     
     ax.plot(x,y,label='Estimated Effect',marker='o',color='#202020',linestyle='-',linewidth=2.5)
-    ax.fill_between(x,CI95['lower'].iloc[1:],CI95['upper'].iloc[1:],color="#A0A0A0",alpha=0.75,label='95% CI')
-    ax.plot(x,CI95['lower'].iloc[1:],color='#606060',linestyle='-.',linewidth=1.5)
-    ax.plot(x,CI95['upper'].iloc[1:],color='#606060',linestyle='-.',linewidth=1.5)
+    ax.fill_between(x,y_ci['lower'],y_ci['upper'],color="#A0A0A0",alpha=0.75,label='95% CI')
+    ax.plot(x,y_ci['lower'],color='#606060',linestyle='-.',linewidth=1.5)
+    ax.plot(x,y_ci['upper'],color='#606060',linestyle='-.',linewidth=1.5)
     ax.axhline(y=0,color='#000000',linestyle='-',linewidth=1)
     
     ax.set_xlabel('Time')
@@ -97,15 +99,9 @@ def parallel_test(data,end_v,time_col,treatment_col, individual_col, covariate_c
     
     ax.set_xticks(x,[t.lstrip('t') for t in exo_vs])
     
-    
     ax.set_title('Event Study Figure')
     ax.legend()
-
     
     plt.show()
-    
-    print(model_result)
-    
-    # under constructing…… show the plot of event study……
     
     return model_result

@@ -69,7 +69,7 @@ def generate_weight(neighbor_relationship,treatment_series,num_neighbors):
 
     '''
     stacked_series=neighbor_relationship.stack()
-    
+    # Groupby stacked_series means calculate the times of unique value.
     result_series=stacked_series.groupby(stacked_series).size()
     
     result_series.index=result_series.index.astype(int)
@@ -77,11 +77,11 @@ def generate_weight(neighbor_relationship,treatment_series,num_neighbors):
     
     return_series=pd.Series(0,index=neighbor_relationship.index)
             
-    for i,value in enumerate(result_series):
-        if treatment_series[i]==1 and value!=0:
-            result_series[i]=1
+    for index,value in result_series.items():
+        if treatment_series[index]==1 and value!=0:
+            result_series[index]=1
         else:
-            result_series[i]=value/num_neighbors
+            result_series[index]=value/num_neighbors
     
     common_index=return_series.index.intersection(result_series.index)
     return_series.loc[common_index]=result_series.loc[common_index]

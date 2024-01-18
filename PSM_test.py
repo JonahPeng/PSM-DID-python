@@ -42,12 +42,14 @@ def balance_check_multi_times(data,treatment_col, covariate_cols, weights_col, t
     
     unique_times=data[time_col].unique()
     check_results=[]
+    check_bools=[]
     
     for time in unique_times:
-        check_result=check_methods[check_method](data.loc[data[time_col]==time],treatment_col,covariate_cols,weights_col)
+        check_result,check_bool=check_methods[check_method](data.loc[data[time_col]==time],treatment_col,covariate_cols,weights_col)
         check_results.append(check_result)
+        check_bools.append(check_bool)
     
-    return check_results
+    return check_results,check_bools
     
 
 # Basic Functions
@@ -64,6 +66,8 @@ def balance_check_means(data, treatment_col, covariate_cols, weights_col):
     返回：
     balance_results: DataFrame，包含匹配前后均值差异的统计信息。
     """
+    is_balanced=False
+    
     # 根据干预效应划分两组
     group_1 = data[data[treatment_col] == 1]
     group_0 = data[data[treatment_col] == 0]
@@ -80,20 +84,30 @@ def balance_check_means(data, treatment_col, covariate_cols, weights_col):
     # 计算匹配前的均值差异
     pre_match_diff = group_1[covariate_cols].mean() - group_0[covariate_cols].mean()
     
-    tw=np.mean(group_1[covariate_cols].to_numpy()*group_1[weights_col].to_numpy()[:,None]/group_1[weights_col].sum(),axis=0) -np.mean( group_0[covariate_cols].to_numpy()*group_0[weights_col].to_numpy()[:,None]/group_0[weights_col].sum(),axis=0)
+    k1=np.mean(group_1[covariate_cols].to_numpy()*group_1[weights_col].to_numpy()[:,None]/group_1[weights_col].sum(),axis=0)
+    k21=group_0[covariate_cols].to_numpy()
+    k22=group_0[weights_col].to_numpy()
+    k23=group_0[weights_col].sum()
+    k2=np.mean(k21*k22[:,None]/k23,axis=0)
+    tw=k1-k2
     
     # 计算匹配后的加权均值差异
     weighted_diff = pd.DataFrame(tw)[0]
 
-    # 统计信息
+    # Summary
     balance_result = pd.DataFrame({
         'Pre-Match Mean Difference': pre_match_diff.values,
         'Weighted Mean Difference': weighted_diff.values,
         'Pre B-stats':(pre_match_diff/std).values,
         'After B-stats':(weighted_diff/weighted_std).values
     }, index=covariate_cols)
-
-    return balance_result
+    
+    if (balance_result['After B-stats'].abs()<0.05).all():
+        is_balanced=True
+    
+    balanced_check_tb=tdx.df_to_docx(balance_result)
+    
+    return balanced_check_tb,is_balanced
 
 def balance_check_cofficient(dataframe, treatment_col, covariate_cols, weights_col):
     '''
@@ -115,12 +129,13 @@ def balance_check_cofficient(dataframe, treatment_col, covariate_cols, weights_c
     None.
 
     '''
-    # Realization of Xie(2021)`s balance check.
+    is_balanced=False
     
+    # Realization of Xie(2021)`s balance check.
     end_var=treatment_col
     exo_vars=covariate_cols
     
-    formula=f"{end_var} ~ {'+'.join(exo_vars)}"
+    formula=f"{end_var} ~ 1 + {'+'.join(exo_vars)}"
     
     y,X=pt.dmatrices(formula,data=dataframe,return_type='dataframe')
     
@@ -132,7 +147,10 @@ def balance_check_cofficient(dataframe, treatment_col, covariate_cols, weights_c
     
     regs=[probit_result,w_probit_result]
     
-    return tdx.regs_to_docx(regs, ['Pre-matching','After-matching'])
+    if (regs[1].pvalues.values[1:]>0.05).all():
+        is_balanced=True
+    
+    return tdx.regs_to_docx(regs, ['Pre-matching','After-matching']),is_balanced
  
 def common_support_check(data, treatment_col, propensity_col,weights_col):
     '''
@@ -172,6 +190,8 @@ def common_support_check(data, treatment_col, propensity_col,weights_col):
     
     common_support_result=pd.concat([count1,count2],axis=1)
     common_support_result['%Common support']=common_support_result['common_obs']/common_support_result['all_obs']
+    
+    tdx.df_to_docx(common_support_result)
     
     return common_support_result
 

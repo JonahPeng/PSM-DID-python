@@ -11,9 +11,10 @@ import tabulate as tb
 import numpy as np
 import pandas as pd
 
-def df_to_docx(data,significance_cols):
-    df=data.round(decimal=3).copy()
-    df[significance_cols]=df[significance_cols].apply(add_stars)
+def df_to_docx(data,significance_cols=None):
+    df=data.round(decimals=3).copy()
+    if significance_cols:
+        df[significance_cols]=df[significance_cols].apply(add_stars)
     return tb.tabulate(df,tablefmt='fancy_grid',headers='keys')
 
 def add_stars(significance):
