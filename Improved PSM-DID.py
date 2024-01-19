@@ -11,8 +11,7 @@ import linearmodels as ls
 import statsmodels.api as sm
 import patsy as pt
 
-import PSM_test as psmt
-import parallel_test as didt
+import Testing as ts
 
 import To_docx as tdx
 
@@ -311,7 +310,11 @@ def PanelDID(data,end_v,exo_vs,treatment_col,time_col,individual_col,applied_col
     result=DID_model.fit()
     
     return result
-    
+
+def log(text,log_file):
+    with open(log_file,'a') as file:
+        file.write(text)
+        file.write("\n")
 
 # 示例用法
 if __name__ == "__main__":
@@ -319,66 +322,84 @@ if __name__ == "__main__":
     dir_path=r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估"
     os.chdir(dir_path)
     
+    # 日志文件路径
+    log_file=r"PythonData\log.txt"
     
     # Read the original dataset.
     df= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\ExcelData\Part2(00-20).csv")
     df=df.dropna()
+    
+    with open(log_file,'w') as file:
+        file.write("# StartPoint\n")
+    
     individual_col='PAC'
     time_col='year'
     
-    treatment_col='function1'
-    propensity_col='p1'
+    treatment_cols=['Agrfun','Urbfun','Ecofun']
+    propensity_cols=['Agrpvalue','Urbpvalue','Ecopvalue']
     applied_col='Time'
     
     fixed_features_cols=['ecoregion']
     
-    df=df.loc[df[time_col]>2004]
-    
-    # Matching and weighting.(PSM)
-    weighted_data=matching(df,individual_col,time_col,treatment_col,propensity_col,fixed_features_cols,method='phased',new_distance=True,new_matching=True)
-    
-    weights_col='weights'
-    
-    # Define the group of variables used in regression.
-    ecology_columns=["PWL","NPP","PM25","HFP"] 
-    agriculture_columns=["GP","PAM","PAL","IRR"]
-    development_columns=["GDP","PAP","PR","DCE","PMP","PIeS","POP"]
-    obs_columns=["PAC","year","function1","function2","function3"]
-    all_variances= obs_columns+ecology_columns+agriculture_columns+development_columns
-    all_covariances=ecology_columns+agriculture_columns+development_columns
-    
-    # Balance check.
-    balance_check_results,balance_check_bools=psmt.balance_check_multi_times(weighted_data, treatment_col, all_covariances, weights_col, time_col)
+    df=df.loc[df[time_col]>=2007]
+    df=df.loc[df[time_col]<=2017]
     
     
-    if all(balance_check_bools):
-        # Common support check.
-        common_support_check=psmt.common_support_check(weighted_data, treatment_col, propensity_col,weights_col)
-
+    for i in range(len(treatment_cols)):
+        log(f"\n## Variables Group {i}",log_file)
         
-        results=[]
-        model_names=[]
+        treatment_col=treatment_cols[i]
+        propensity_col=propensity_cols[i]
+        # Matching and weighting.(PSM)
+        weighted_data=matching(df,individual_col,time_col,treatment_col,propensity_col,fixed_features_cols,method='phased',new_distance=True,new_matching=True)
+    
+        weights_col='weights'
         
-        # Drop the unmatched observations.
-        weighted_data=weighted_data.loc[weighted_data[weights_col]>0]
+        # Define the group of variables used in regression.
+        ecology_columns=["PWL","NPP","PM25","HFP"] 
+        agriculture_columns=["GP","PAM","PAL","IRR"]
+        development_columns=["GDP","PAP","PR","DCE","PIeS","POP"]
+        variables_groups=[agriculture_columns,development_columns,ecology_columns]
+        all_covariances=ecology_columns+agriculture_columns+development_columns
         
-        # Define related variables of econometrics model.
-        for end_v in agriculture_columns:
-            exo_vs=ecology_columns+development_columns
+        # Balance check.
+        balance_check_results,balance_check_bools=ts.balance_check_multi_times(weighted_data, treatment_col, all_covariances, weights_col, time_col)
+        
+        
+        if all(balance_check_bools):
+            log("The balance check of Propensity Matching passed.",log_file)
+            # Common support check.
+            common_support_check=ts.common_support_check(weighted_data, treatment_col, propensity_col,weights_col)
             
-            result=PanelDID(weighted_data,end_v,exo_vs,treatment_col,time_col,individual_col,applied_col,weights_col=weights_col)
+            log("Results of common support check:",log_file)
+            log(tdx.df_to_docx(common_support_check),log_file)
             
-            results.append(result)
-            model_names.append(end_v)
+            results=[]
+            
+            end_vs=variables_groups.pop(i)
+            exo_vs=[]
+            for item in variables_groups:
+                exo_vs=exo_vs+item
+            
+            # Drop the unmatched observations.
+            weighted_data=weighted_data.loc[weighted_data[weights_col]>0]
+            
+            # Define related variables of econometrics model.
+            for end_v in end_vs:
+                result=PanelDID(weighted_data,end_v,exo_vs,treatment_col,time_col,individual_col,applied_col,weights_col=weights_col)
+                results.append(result)
+            
+            time_startpoint=2012
+            
+            for end_v in end_vs:
+                parallel_test_check=ts.parallel_test(weighted_data, end_v, time_col, treatment_col, individual_col, exo_vs, time_startpoint,weights_col=weights_col)
+            
+            temp_df,table=tdx.regs_to_docx(results,end_vs)
+            log("Results of DID Regressions:",log_file)
+            log(table,log_file)
         
-        end_vs=agriculture_columns
-        exo_vs=ecology_columns+development_columns
-        
-        time_startpoint=2012
-        
-        for end_v in end_vs:
-            parallel_test_check=didt.parallel_test(weighted_data, end_v, time_col, treatment_col, individual_col, exo_vs, time_startpoint,weights_col=weights_col)
-        
-        tdx.regs_to_docx(results,agriculture_columns)
-    
-        
+        else:
+            log("The balance check of Propensity Matching not passed. Failed Times:",log_file)
+            false_times= [index for index,value in enumerate(balance_check_bools) if not value]
+            log(",".join([str(t) for t in false_times]),log_file)
+            log('\n',log_file)

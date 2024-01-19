@@ -94,7 +94,6 @@ def regs_to_docx(regs,end_vs):
     
     dataframe=pd.DataFrame(data=output_tb[1:],columns=output_tb[0])
     
-    print(table)
-    return dataframe
+    return dataframe,table
     
 
