@@ -1,1 +1,0 @@
-y, X = dmatrices('Lottery ~ Literacy + Wealth + Region', data=df, return_type='dataframe')
