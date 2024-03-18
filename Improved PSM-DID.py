@@ -326,8 +326,7 @@ if __name__ == "__main__":
     log_file=r"PythonData\log.txt"
     
     # Read the original dataset.
-    df= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\ExcelData\Part2(00-20).csv")
-    df=df.dropna()
+    df_= pd.read_csv(r"D:\OneDrive\【S05】组内事宜\主体功能区规划评估\ExcelData\Part2_Normal_Comparison.csv")
     
     with open(log_file,'w') as file:
         file.write("# StartPoint\n")
@@ -335,18 +334,20 @@ if __name__ == "__main__":
     individual_col='PAC'
     time_col='year'
     
-    treatment_cols=['Agrfun','Urbfun','Ecofun']
-    propensity_cols=['Agrpvalue','Urbpvalue','Ecopvalue']
+    treatment_cols=['Agri2Urb','Agri2Eco','Urb2Eco']
+    propensity_cols=['Agri2Urbpvalue','Agri2Ecopvalue','Urb2Ecopvalue']
+    filters_cols=['f1','f2','f3']
     applied_col='Time'
     
     fixed_features_cols=['ecoregion']
     
-    df=df.loc[df[time_col]>=2007]
-    df=df.loc[df[time_col]<=2017]
+    df_=df_.loc[df_[time_col]>=2009]
+    df_=df_.loc[df_[time_col]<=2017]
     
     
     for i in range(len(treatment_cols)):
         log(f"\n## Variables Group {i}",log_file)
+        df=df_.loc[df_[filters_cols[i]]==0]
         
         treatment_col=treatment_cols[i]
         propensity_col=propensity_cols[i]
